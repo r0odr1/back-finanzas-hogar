@@ -46,3 +46,11 @@ La identidad mostrada como autor en determinados commits puede depender de la co
 ## Estado
 
 🚧 Proyecto actualmente en desarrollo.
+
+## Derechos de autor
+
+Copyright © 2026 Rodrigo Bonilla. Todos los derechos reservados.
+
+Este software es un proyecto personal. No se concede permiso para copiar,
+modificar, distribuir, sublicenciar o utilizar este código, total o parcialmente,
+sin autorización expresa y por escrito del autor.
