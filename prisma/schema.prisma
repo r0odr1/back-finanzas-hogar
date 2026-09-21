@@ -11,3 +11,254 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum HouseholdRole {
+  OWNER
+  MEMBER
+}
+
+enum MovementType {
+  EXPENSE
+  INCOME
+}
+
+enum MovementSource {
+  APP
+  TELEGRAM
+  MIGRATION
+}
+
+enum BudgetScope {
+  HOUSEHOLD
+  MEMBER
+}
+
+enum AlertLevel {
+  WARNING
+  CRITICAL
+  EXCEEDED
+}
+
+enum AlertStatus {
+  ACTIVE
+  READ
+  DISMISSED
+}
+
+enum ClosureStatus {
+  CLOSED
+  REOPENED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  CLOSE
+  REOPEN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships HouseholdMember[]
+  auditLogs   AuditLog[]
+}
+
+model Household {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members        HouseholdMember[]
+  accounts       Account[]
+  categories     Category[]
+  movements      Movement[]
+  monthlyIncomes MonthlyIncome[]
+  budgets        Budget[]
+  alerts         Alert[]
+  closures       MonthlyClosure[]
+  auditLogs      AuditLog[]
+}
+
+model HouseholdMember {
+  id          String        @id @default(uuid())
+  householdId String
+  userId      String?
+  displayName String
+  role        HouseholdRole @default(MEMBER)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  household      Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  movements      Movement[]
+  monthlyIncomes MonthlyIncome[]
+  budgets        Budget[]
+
+  @@unique([householdId, userId])
+  @@unique([householdId, displayName])
+  @@index([householdId])
+}
+
+model Account {
+  id          String   @id @default(uuid())
+  householdId String
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household      Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  movements      Movement[]
+  monthlyIncomes MonthlyIncome[]
+
+  @@unique([householdId, name])
+  @@index([householdId])
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  householdId String
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  movements Movement[]
+  budgets   Budget[]
+
+  @@unique([householdId, name])
+  @@index([householdId])
+}
+
+model Movement {
+  id          String         @id @default(uuid())
+  householdId String
+  memberId    String
+  accountId   String
+  categoryId  String?
+  type        MovementType
+  source      MovementSource @default(APP)
+  amount      Decimal        @db.Decimal(14, 2)
+  description String
+  occurredAt  DateTime
+  deletedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  household Household       @relation(fields: [householdId], references: [id], onDelete: Restrict)
+  member    HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  account   Account         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category  Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([householdId, occurredAt])
+  @@index([memberId, occurredAt])
+  @@index([categoryId, occurredAt])
+  @@index([accountId, occurredAt])
+}
+
+model MonthlyIncome {
+  id          String   @id @default(uuid())
+  householdId String
+  memberId    String
+  accountId   String
+  year        Int
+  month       Int
+  amount      Decimal  @db.Decimal(14, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household       @relation(fields: [householdId], references: [id], onDelete: Restrict)
+  member    HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  account   Account         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([memberId, accountId, year, month])
+  @@index([householdId, year, month])
+}
+
+model Budget {
+  id          String      @id @default(uuid())
+  householdId String
+  memberId    String?
+  categoryId  String
+  scope       BudgetScope @default(HOUSEHOLD)
+  year        Int
+  month       Int
+  amount      Decimal     @db.Decimal(14, 2)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  household Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category  Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, year, month])
+  @@index([categoryId, year, month])
+}
+
+model Alert {
+  id          String      @id @default(uuid())
+  householdId String
+  year        Int
+  month       Int
+  level       AlertLevel
+  status      AlertStatus @default(ACTIVE)
+  percentage  Decimal     @db.Decimal(7, 2)
+  message     String
+  createdAt   DateTime    @default(now())
+  readAt      DateTime?
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, year, month])
+}
+
+model MonthlyClosure {
+  id                String        @id @default(uuid())
+  householdId       String
+  year              Int
+  month             Int
+  incomeTotal       Decimal       @db.Decimal(14, 2)
+  expenseTotal      Decimal       @db.Decimal(14, 2)
+  balanceTotal      Decimal       @db.Decimal(14, 2)
+  usagePercentage   Decimal       @db.Decimal(7, 2)
+  topCategoryName   String?
+  topCategoryAmount Decimal?      @db.Decimal(14, 2)
+  status            ClosureStatus @default(CLOSED)
+  closedAt          DateTime      @default(now())
+  reopenedAt        DateTime?
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Restrict)
+
+  @@index([householdId, year, month])
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  householdId String
+  userId      String?
+  action      AuditAction
+  entity      String
+  entityId    String
+  beforeData  Json?
+  afterData   Json?
+  createdAt   DateTime    @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Restrict)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([householdId, createdAt])
+  @@index([entity, entityId])
+}
