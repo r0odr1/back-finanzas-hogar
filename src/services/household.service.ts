@@ -41,3 +41,35 @@ export const createHousehold = async (data: CreateHouseholdData) => {
     return household;
   });
 };
+
+export const getUserHouseholds = async (userId: string) => {
+  return prisma.household.findMany({
+    where: {
+      members: {
+        some: {
+          userId,
+          isActive: true,
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      createdAt: true,
+      members: {
+        where: {
+          userId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          displayName: true,
+          role: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+};

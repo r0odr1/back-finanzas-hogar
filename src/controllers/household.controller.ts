@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createHousehold } from '../services/household.service';
+import { createHousehold, getUserHouseholds } from '../services/household.service';
 
 export const create = async (req: Request, res: Response) => {
   try {
@@ -35,6 +35,30 @@ export const create = async (req: Request, res: Response) => {
     }
 
     console.error('Error creando hogar:', error);
+
+    return res.status(500).json({
+      message: 'Error interno del servidor.',
+    });
+  }
+};
+
+export const list = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Usuario no autenticado.',
+      });
+    }
+
+    const households = await getUserHouseholds(userId);
+
+    return res.status(200).json({
+      households,
+    });
+  } catch (error) {
+    console.error('Error consultando hogares:', error);
 
     return res.status(500).json({
       message: 'Error interno del servidor.',
