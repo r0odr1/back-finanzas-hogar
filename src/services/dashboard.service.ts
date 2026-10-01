@@ -31,7 +31,7 @@ export const getMonthlySummary = async (data: MonthlySummaryData) => {
   const startDate = new Date(Date.UTC(data.year, data.month - 1, 1));
   const endDate = new Date(Date.UTC(data.year, data.month, 1));
 
-  const [monthlyIncome, extraIncome, expenses, members] = await Promise.all([
+  const [monthlyIncome, extraIncome, expenses, members, categoryExpenses] = await Promise.all([
     prisma.monthlyIncome.aggregate({
       where: {
         householdId: data.householdId,
@@ -86,7 +86,58 @@ export const getMonthlySummary = async (data: MonthlySummaryData) => {
         createdAt: 'asc',
       },
     }),
+
+    prisma.movement.groupBy({
+      by: ['categoryId'],
+      where: {
+        householdId: data.householdId,
+        type: 'EXPENSE',
+        deletedAt: null,
+        categoryId: {
+          not: null,
+        },
+        occurredAt: {
+          gte: startDate,
+          lt: endDate,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
   ]);
+
+  const categoryIds = categoryExpenses
+  .map((item) => item.categoryId)
+  .filter((categoryId): categoryId is string => Boolean(categoryId));
+
+const categories = categoryIds.length > 0
+  ? await prisma.category.findMany({
+      where: {
+        id: {
+          in: categoryIds,
+        },
+        householdId: data.householdId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    })
+  : [];
+
+const categoryMap = new Map(
+  categories.map((category) => [category.id, category.name]),
+);
+
+const topCategories = categoryExpenses
+  .map((item) => ({
+    id: item.categoryId as string,
+    name: categoryMap.get(item.categoryId as string) ?? 'Sin categoría',
+    total: Number(item._sum.amount ?? 0),
+  }))
+  .sort((a, b) => b.total - a.total)
+  .slice(0, 5);
 
   const membersSummary = await Promise.all(
     members.map(async (member) => {
@@ -189,5 +240,6 @@ export const getMonthlySummary = async (data: MonthlySummaryData) => {
     },
     usagePercentage,
     members: membersSummary,
+    topCategories,
   };
 };
