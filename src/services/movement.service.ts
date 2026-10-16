@@ -32,6 +32,12 @@ interface UpdateMovementData {
   occurredAt: Date;
 }
 
+interface DeleteMovementData {
+  householdId: string;
+  movementId: string;
+  userId: string;
+}
+
 export const getMovements = async (data: GetMovementsData) => {
   const membership = await prisma.householdMember.findFirst({
     where: {
@@ -385,5 +391,88 @@ export const updateMovement = async (data: UpdateMovementData) => {
       ...movement,
       amount: Number(movement.amount),
     };
+  });
+};
+
+export const deleteMovement = async (data: DeleteMovementData) => {
+  const requester = await prisma.householdMember.findFirst({
+    where: {
+      householdId: data.householdId,
+      userId: data.userId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!requester) {
+    throw new Error('NOT_HOUSEHOLD_MEMBER');
+  }
+
+  const currentMovement = await prisma.movement.findFirst({
+    where: {
+      id: data.movementId,
+      householdId: data.householdId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      memberId: true,
+      accountId: true,
+      categoryId: true,
+      type: true,
+      source: true,
+      amount: true,
+      description: true,
+      occurredAt: true,
+    },
+  });
+
+  if (!currentMovement) {
+    throw new Error('MOVEMENT_NOT_FOUND');
+  }
+
+  const deletedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    const movement = await tx.movement.update({
+      where: {
+        id: data.movementId,
+      },
+      data: {
+        deletedAt,
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        householdId: data.householdId,
+        userId: data.userId,
+        action: 'DELETE',
+        entity: 'Movement',
+        entityId: data.movementId,
+        beforeData: {
+          memberId: currentMovement.memberId,
+          accountId: currentMovement.accountId,
+          categoryId: currentMovement.categoryId,
+          type: currentMovement.type,
+          source: currentMovement.source,
+          amount: Number(currentMovement.amount),
+          description: currentMovement.description,
+          occurredAt: currentMovement.occurredAt.toISOString(),
+          deletedAt: null,
+        },
+        afterData: {
+          deletedAt: deletedAt.toISOString(),
+        },
+      },
+    });
+
+    return movement;
   });
 };

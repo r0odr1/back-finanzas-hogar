@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createMovement, getMovements, updateMovement } from '../services/movement.service';
+import { createMovement, getMovements, updateMovement, deleteMovement } from '../services/movement.service';
 
 export const list = async (req: Request, res: Response) => {
   try {
@@ -315,6 +315,61 @@ export const update = async (req: Request, res: Response) => {
     }
 
     console.error('Error actualizando movimiento:', error);
+
+    return res.status(500).json({
+      message: 'Error interno del servidor.',
+    });
+  }
+};
+
+export const remove = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { householdId, movementId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Usuario no autenticado.',
+      });
+    }
+
+    if (typeof householdId !== 'string' || !householdId) {
+      return res.status(400).json({
+        message: 'Hogar inválido.',
+      });
+    }
+
+    if (typeof movementId !== 'string' || !movementId) {
+      return res.status(400).json({
+        message: 'Movimiento inválido.',
+      });
+    }
+
+    await deleteMovement({
+      householdId,
+      movementId,
+      userId,
+    });
+
+    return res.status(200).json({
+      message: 'Movimiento eliminado correctamente.',
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'NOT_HOUSEHOLD_MEMBER') {
+        return res.status(403).json({
+          message: 'No perteneces a este hogar.',
+        });
+      }
+
+      if (error.message === 'MOVEMENT_NOT_FOUND') {
+        return res.status(404).json({
+          message: 'Movimiento no encontrado.',
+        });
+      }
+    }
+
+    console.error('Error eliminando movimiento:', error);
 
     return res.status(500).json({
       message: 'Error interno del servidor.',
