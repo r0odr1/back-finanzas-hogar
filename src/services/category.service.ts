@@ -18,7 +18,7 @@ interface UpdateCategoryData {
   name: string;
 }
 
-interface DisableCategoryData {
+interface DeleteCategoryData {
   householdId: string;
   categoryId: string;
   userId: string;
@@ -224,7 +224,7 @@ export const updateCategory = async (data: UpdateCategoryData) => {
   });
 };
 
-export const disableCategory = async (data: DisableCategoryData) => {
+export const deleteCategory = async (data: DeleteCategoryData) => {
   const membership = await prisma.householdMember.findFirst({
     where: {
       householdId: data.householdId,
@@ -244,7 +244,6 @@ export const disableCategory = async (data: DisableCategoryData) => {
     where: {
       id: data.categoryId,
       householdId: data.householdId,
-      isActive: true,
     },
     select: {
       id: true,
@@ -257,20 +256,28 @@ export const disableCategory = async (data: DisableCategoryData) => {
     throw new Error('CATEGORY_NOT_FOUND');
   }
 
+  const [movementsCount, budgetsCount] = await Promise.all([
+    prisma.movement.count({
+      where: {
+        categoryId: data.categoryId,
+      },
+    }),
+
+    prisma.budget.count({
+      where: {
+        categoryId: data.categoryId,
+      },
+    }),
+  ]);
+
+  if (movementsCount > 0 || budgetsCount > 0) {
+    throw new Error('CATEGORY_IN_USE');
+  }
+
   return prisma.$transaction(async (tx) => {
-    const category = await tx.category.update({
+    await tx.category.delete({
       where: {
         id: data.categoryId,
-      },
-      data: {
-        isActive: false,
-      },
-      select: {
-        id: true,
-        name: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
       },
     });
 
@@ -285,13 +292,9 @@ export const disableCategory = async (data: DisableCategoryData) => {
           name: currentCategory.name,
           isActive: currentCategory.isActive,
         },
-        afterData: {
-          name: category.name,
-          isActive: category.isActive,
-        },
       },
     });
 
-    return category;
+    return currentCategory;
   });
 };

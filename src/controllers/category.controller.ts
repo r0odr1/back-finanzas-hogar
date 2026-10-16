@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createCategory, disableCategory, getCategories, updateCategory } from '../services/category.service';
+import { createCategory, deleteCategory, getCategories, updateCategory } from '../services/category.service';
 
 export const list = async (req: Request, res: Response) => {
   try {
@@ -206,14 +206,14 @@ export const remove = async (req: Request, res: Response) => {
       });
     }
 
-    await disableCategory({
+    await deleteCategory({
       householdId,
       categoryId,
       userId,
     });
 
     return res.status(200).json({
-      message: 'Categoría desactivada correctamente.',
+      message: 'Categoría eliminada correctamente.',
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -226,6 +226,12 @@ export const remove = async (req: Request, res: Response) => {
       if (error.message === 'CATEGORY_NOT_FOUND') {
         return res.status(404).json({
           message: 'Categoría no encontrada.',
+        });
+      }
+
+      if (error.message === 'CATEGORY_IN_USE') {
+        return res.status(409).json({
+          message: 'No puedes eliminar una categoría que ya tiene movimientos o presupuestos asociados.',
         });
       }
     }
