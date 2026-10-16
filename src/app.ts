@@ -7,6 +7,7 @@ import householdRoutes from './routes/household.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import movementRoutes from './routes/movement.routes';
 import catalogRoutes from './routes/catalog.routes';
+import monthlyIncomeRoutes from './routes/monthly-income.routes';
 
 const app = express();
 
@@ -20,5 +21,6 @@ app.use('/api/households', householdRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/movements', movementRoutes);
 app.use('/api/catalogs', catalogRoutes);
+app.use('/api/monthly-incomes', monthlyIncomeRoutes);
 
 export default app;
