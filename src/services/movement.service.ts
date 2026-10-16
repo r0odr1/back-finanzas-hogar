@@ -19,6 +19,19 @@ interface CreateMovementData {
   occurredAt: Date;
 }
 
+interface UpdateMovementData {
+  householdId: string;
+  movementId: string;
+  userId: string;
+  memberId: string;
+  accountId: string;
+  categoryId?: string | null;
+  type: 'EXPENSE' | 'INCOME';
+  amount: number;
+  description: string;
+  occurredAt: Date;
+}
+
 export const getMovements = async (data: GetMovementsData) => {
   const membership = await prisma.householdMember.findFirst({
     where: {
@@ -208,4 +221,169 @@ export const createMovement = async (data: CreateMovementData) => {
     ...movement,
     amount: Number(movement.amount),
   };
+};
+
+export const updateMovement = async (data: UpdateMovementData) => {
+  const requester = await prisma.householdMember.findFirst({
+    where: {
+      householdId: data.householdId,
+      userId: data.userId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!requester) {
+    throw new Error('NOT_HOUSEHOLD_MEMBER');
+  }
+
+  const currentMovement = await prisma.movement.findFirst({
+    where: {
+      id: data.movementId,
+      householdId: data.householdId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      memberId: true,
+      accountId: true,
+      categoryId: true,
+      type: true,
+      amount: true,
+      description: true,
+      occurredAt: true,
+    },
+  });
+
+  if (!currentMovement) {
+    throw new Error('MOVEMENT_NOT_FOUND');
+  }
+
+  const [member, account, category] = await Promise.all([
+    prisma.householdMember.findFirst({
+      where: {
+        id: data.memberId,
+        householdId: data.householdId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    }),
+
+    prisma.account.findFirst({
+      where: {
+        id: data.accountId,
+        householdId: data.householdId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    }),
+
+    data.categoryId
+      ? prisma.category.findFirst({
+          where: {
+            id: data.categoryId,
+            householdId: data.householdId,
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (!member) {
+    throw new Error('MEMBER_NOT_FOUND');
+  }
+
+  if (!account) {
+    throw new Error('ACCOUNT_NOT_FOUND');
+  }
+
+  if (data.categoryId && !category) {
+    throw new Error('CATEGORY_NOT_FOUND');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const movement = await tx.movement.update({
+      where: {
+        id: data.movementId,
+      },
+      data: {
+        memberId: data.memberId,
+        accountId: data.accountId,
+        categoryId: data.categoryId || null,
+        type: data.type,
+        amount: data.amount,
+        description: data.description.trim(),
+        occurredAt: data.occurredAt,
+      },
+      select: {
+        id: true,
+        type: true,
+        source: true,
+        amount: true,
+        description: true,
+        occurredAt: true,
+        createdAt: true,
+        member: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        householdId: data.householdId,
+        userId: data.userId,
+        action: 'UPDATE',
+        entity: 'Movement',
+        entityId: data.movementId,
+        beforeData: {
+          memberId: currentMovement.memberId,
+          accountId: currentMovement.accountId,
+          categoryId: currentMovement.categoryId,
+          type: currentMovement.type,
+          amount: Number(currentMovement.amount),
+          description: currentMovement.description,
+          occurredAt: currentMovement.occurredAt.toISOString(),
+        },
+        afterData: {
+          memberId: data.memberId,
+          accountId: data.accountId,
+          categoryId: data.categoryId || null,
+          type: data.type,
+          amount: data.amount,
+          description: data.description.trim(),
+          occurredAt: data.occurredAt.toISOString(),
+        },
+      },
+    });
+
+    return {
+      ...movement,
+      amount: Number(movement.amount),
+    };
+  });
 };
