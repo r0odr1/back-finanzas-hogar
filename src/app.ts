@@ -9,6 +9,7 @@ import movementRoutes from './routes/movement.routes';
 import catalogRoutes from './routes/catalog.routes';
 import monthlyIncomeRoutes from './routes/monthly-income.routes';
 import categoryRoutes from './routes/category.routes';
+import budgetRoutes from './routes/budget.routes';
 
 const app = express();
 
@@ -24,5 +25,6 @@ app.use('/api/movements', movementRoutes);
 app.use('/api/catalogs', catalogRoutes);
 app.use('/api/monthly-incomes', monthlyIncomeRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/budgets', budgetRoutes);
 
 export default app;
