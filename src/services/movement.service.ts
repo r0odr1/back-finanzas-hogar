@@ -5,6 +5,10 @@ interface GetMovementsData {
   userId: string;
   year: number;
   month: number;
+  type?: 'EXPENSE' | 'INCOME';
+  memberId?: string;
+  accountId?: string;
+  categoryId?: string;
 }
 
 interface CreateMovementData {
@@ -65,6 +69,10 @@ export const getMovements = async (data: GetMovementsData) => {
         gte: startDate,
         lt: endDate,
       },
+      ...(data.type ? { type: data.type } : {}),
+      ...(data.memberId ? { memberId: data.memberId } : {}),
+      ...(data.accountId ? { accountId: data.accountId } : {}),
+      ...(data.categoryId ? { categoryId: data.categoryId } : {}),
     },
     select: {
       id: true,

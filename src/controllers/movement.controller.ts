@@ -20,6 +20,10 @@ export const list = async (req: Request, res: Response) => {
 
     const year = Number(req.query.year);
     const month = Number(req.query.month);
+    const type = req.query.type;
+    const memberId = req.query.memberId;
+    const accountId = req.query.accountId;
+    const categoryId = req.query.categoryId;
 
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       return res.status(400).json({
@@ -33,11 +37,39 @@ export const list = async (req: Request, res: Response) => {
       });
     }
 
+    if (type !== undefined && type !== 'EXPENSE' && type !== 'INCOME') {
+      return res.status(400).json({
+        message: 'Tipo de movimiento inválido.',
+      });
+    }
+
+    if (memberId !== undefined && typeof memberId !== 'string') {
+      return res.status(400).json({
+        message: 'Miembro inválido.',
+      });
+    }
+
+    if (accountId !== undefined && typeof accountId !== 'string') {
+      return res.status(400).json({
+        message: 'Cuenta inválida.',
+      });
+    }
+
+    if (categoryId !== undefined && typeof categoryId !== 'string') {
+      return res.status(400).json({
+        message: 'Categoría inválida.',
+      });
+    }
+
     const movements = await getMovements({
       householdId,
       userId,
       year,
       month,
+      type,
+      memberId,
+      accountId,
+      categoryId,
     });
 
     return res.status(200).json({
